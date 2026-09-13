@@ -50,24 +50,6 @@ pipeline {
             }
         }
 
-        stage('SonarQube Analysis') {
-            // Roda a analise estatica do reactor inteiro (service-a e service-b)
-            // e envia o resultado para o servidor SonarQube dentro do cluster
-            // (Service "sonarqube-service", ver k8s/manifests/sonarqube/service.yaml).
-            // Fica depois dos testes (o Sonar aproveita os relatorios de cobertura/
-            // teste ja gerados) e antes do build da imagem Docker, para nao gastar
-            // tempo empacotando imagem se o codigo tiver problema grave de qualidade.
-            //
-            // Nota: sem token de autenticacao, isso so funciona se o projeto/instancia
-            // do SonarQube permitir analise anonima (padrao numa instalacao nova, so
-            // para estudo). Num cenario real, seria necessario gerar um token em
-            // "My Account > Security" e passar via -Dsonar.token=... (idealmente lido
-            // de uma credential do Jenkins, nunca hardcoded no Jenkinsfile).
-            steps {
-                sh 'mvn -B sonar:sonar -Dsonar.host.url=http://sonarqube-service:9000'
-            }
-        }
-
         stage('Docker Build') {
             // Builda a imagem de cada microsservico usando os Dockerfiles
             // multi-stage (maven:3.9-eclipse-temurin-17 -> eclipse-temurin:17-jre-alpine).

@@ -56,6 +56,7 @@ spec:
         - name: storage
           # Sem PVC de proposito (nao foi pedido para o Loki): os dados de log
           # somem se o pod for recriado. Para persistir entre reinicios, troque
-          # por um volumes.persistentVolumeClaim (mesmo padrao usado no
-          # SonarQube em k8s/manifests/sonarqube/pvc.yaml).
+          # por um volumes.persistentVolumeClaim apontando para uma
+          # PersistentVolumeClaim (ver a spec.resources.requests.storage e
+          # accessModes de um PVC comum do Kubernetes).
           emptyDir: {}

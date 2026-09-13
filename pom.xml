@@ -29,20 +29,6 @@
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <sonar.maven.plugin.version>5.8.0.7211</sonar.maven.plugin.version>
     </properties>
-
-    <build>
-        <plugins>
-            <!-- Permite rodar "mvn sonar:sonar" a partir da raiz e analisar o
-                 reactor inteiro (service-a e service-b), enviando o resultado
-                 para o servidor SonarQube (ver -Dsonar.host.url no Jenkinsfile). -->
-            <plugin>
-                <groupId>org.sonarsource.scanner.maven</groupId>
-                <artifactId>sonar-maven-plugin</artifactId>
-                <version>${sonar.maven.plugin.version}</version>
-            </plugin>
-        </plugins>
-    </build>
 
 </project>

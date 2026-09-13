@@ -66,9 +66,8 @@ k8s/manifests/
   promtail/                   # DaemonSet, ConfigMap, RBAC - coleta de logs dos pods
   tempo/                       # Deployment, Service, ConfigMap - armazenamento de traces
   grafana/                   # Deployment, Service, ConfigMap (datasources provisionados)
-  sonarqube/                  # Deployment, Service, PVC (analise de qualidade)
-Jenkinsfile                 # Pipeline declarativo: build -> testes -> Sonar
-                             # -> docker build -> import no k3s -> deploy no k8s
+Jenkinsfile                 # Pipeline declarativo: build -> testes -> docker build
+                             # -> import no k3s -> deploy no k8s
 ```
 
 ## Requisitos
@@ -132,17 +131,11 @@ docker save service-b:latest | sudo k3s ctr images import -
 
 **3. Aplicar os manifests** (o `-R` e necessario porque cada componente tem sua
 propria subpasta dentro de `k8s/manifests/`; isso ja aplica service-a, service-b,
-Prometheus, Loki, Promtail, Tempo, Grafana **e** o SonarQube):
+Prometheus, Loki, Promtail, Tempo **e** Grafana):
 
 ```
 kubectl apply -f k8s/manifests/ -R
 ```
-
-> O SonarQube demora bem mais para ficar pronto que os outros componentes (o
-> Elasticsearch embutido pode levar 1-2 minutos para subir) e precisa de mais
-> memoria — os `resources` dele em `k8s/manifests/sonarqube/deployment.yaml` sao
-> bem maiores que os do service-a/service-b. Acompanhe com
-> `kubectl get pods -w` ate o pod do `sonarqube` ficar `Running`/`1/1 Ready`.
 
 **4. Forcar o rollout** caso esteja re-implantando uma imagem nova com a mesma tag
 `:latest` (o Kubernetes so percebe uma imagem "nova" se o texto do manifest mudar;
@@ -165,26 +158,16 @@ E repita os `curl` da secao anterior.
 
 ## Rodando o pipeline completo via Jenkins
 
-O `Jenkinsfile` na raiz automatiza os passos manuais acima em 7 stages:
+O `Jenkinsfile` na raiz automatiza os passos manuais acima em 6 stages:
 
 1. **Checkout** — traz o codigo do repositorio.
 2. **Build (mvn clean package)** — compila e empacota os dois modulos (`-DskipTests`).
 3. **Test** — roda `mvn test` e publica os resultados (JUnit) no Jenkins.
-4. **SonarQube Analysis** — `mvn sonar:sonar -Dsonar.host.url=http://sonarqube-service:9000`,
-   analisando o reactor inteiro e enviando o resultado para o SonarQube do cluster.
-5. **Docker Build** — builda `service-a:latest` e `service-b:latest`.
-6. **Import images to k3s containerd** — `docker save | sudo k3s ctr images import -`
+4. **Docker Build** — builda `service-a:latest` e `service-b:latest`.
+5. **Import images to k3s containerd** — `docker save | sudo k3s ctr images import -`
    para cada imagem.
-7. **Deploy to Kubernetes** — `kubectl apply -f k8s/manifests/ -R` seguido de
+6. **Deploy to Kubernetes** — `kubectl apply -f k8s/manifests/ -R` seguido de
    `kubectl rollout restart` nos dois Deployments.
-
-> A stage de SonarQube fica **antes** do build da imagem Docker de proposito: nao
-> faz sentido gastar tempo empacotando e importando uma imagem se o codigo tiver
-> um problema serio de qualidade. Neste pipeline de estudo ela nao *bloqueia* o
-> deploy mesmo se o Quality Gate falhar (ver secao "Analise de qualidade" abaixo)
-> — numa esteira real, normalmente se adicionaria um `waitForQualityGate abortPipeline: true`
-> apos a analise, usando o plugin "SonarQube Scanner for Jenkins" com webhook
-> configurado no servidor.
 
 ### Pre-requisitos do agente Jenkins
 
@@ -370,88 +353,3 @@ validar a integracao ponta a ponta - sirva de guia para explorar voce mesmo:
 Esse fluxo — metrica aponta que algo aconteceu, log explica o que foi, trace
 mostra onde o tempo foi gasto e por quais servicos a requisicao passou — e o
 motivo de se ter os 3 pilares juntos em vez de só um.
-
-## Analise de qualidade com SonarQube
-
-O `pom.xml` pai declara o `sonar-maven-plugin` (`org.sonarsource.scanner.maven`),
-entao `mvn sonar:sonar` (rodado a partir da raiz) analisa o reactor inteiro —
-`service-a` e `service-b` juntos, na mesma execucao.
-
-O SonarQube roda como um componente a mais no cluster
-(`k8s/manifests/sonarqube/`): `Deployment` com `PersistentVolumeClaim` (para os
-dados de analise sobreviverem a reinicios do pod) e `Service` chamado
-`sonarqube-service`, que e o nome usado pelo Jenkinsfile em
-`-Dsonar.host.url=http://sonarqube-service:9000`.
-
-### Acessando a interface do SonarQube
-
-```
-kubectl port-forward svc/sonarqube-service 9000:9000
-```
-
-Abra http://localhost:9000 no navegador.
-
-- **Usuario:** `admin`
-- **Senha:** `admin` (senha padrao de uma instalacao nova do SonarQube — ele vai
-  pedir para trocar no primeiro login)
-
-Depois da primeira analise (`mvn sonar:sonar` local, ou via stage do Jenkins), o
-projeto aparece na tela inicial como **um unico projeto**, chamado
-`com.practica:k8s-jenkins-observability-lab` (o `groupId:artifactId` do POM pai) —
-o `sonar-maven-plugin` roda no reactor inteiro e agrega `service-a` e `service-b`
-num so projeto no SonarQube, cada um aparecendo como uma "pasta" dentro dele
-(nao como dois projetos separados).
-
-> Numa instalacao nova, o token padrao `admin`/`admin` funciona direto na API,
-> mas a UI forca a troca de senha no primeiro login. Para rodar a analise (local
-> ou no Jenkins) e preciso gerar um token em **My Account > Security > Generate
-> token** e passar via `-Dsonar.token=<token>` — sem isso, a partir da versao
-> usada aqui o SonarQube responde `401 Unauthorized` mesmo para o `sonar.host.url`
-> correto (testamos e confirmamos esse comportamento).
-
-### Interpretando o resultado (Quality Gate)
-
-Ao abrir um projeto, o SonarQube mostra um selo grande no topo:
-
-- 🟢 **Passed** — o codigo passou em todas as condicoes configuradas no Quality
-  Gate (o padrao, "Sonar way", cobre coisas como: sem bugs/vulnerabilidades novos,
-  cobertura minima de testes no codigo novo, duplicacao de codigo abaixo de um
-  limite, etc.)
-- 🔴 **Failed** — pelo menos uma condicao do Quality Gate nao foi atendida.
-  Clique no card **Quality Gate** (ou na aba correspondente) para ver **qual**
-  condicao especifica falhou (ex.: "Coverage on New Code is less than 80%").
-
-> **Pegadinha comum:** rodamos a primeira analise deste projeto (sem nenhum
-> teste ainda, 0% de cobertura) e o Quality Gate veio **Passed** mesmo assim.
-> Isso acontece porque a maioria das condicoes do "Sonar way" e sobre **codigo
-> novo** ("new code"), e numa primeira analise ainda nao existe um periodo
-> anterior para comparar — so a partir da segunda analise em diante essas
-> condicoes passam a valer de verdade. Nao interprete um selo verde na primeira
-> analise como "o codigo esta bom"; olhe a aba **Measures** para os numeros
-> absolutos (cobertura, bugs, code smells, etc).
-
-Nas abas de cada projeto:
-
-- **Issues** — lista bugs, vulnerabilidades e "code smells" encontrados, com
-  severidade (Blocker/Critical/Major/Minor/Info) e o trecho de codigo apontado.
-  Exemplo real encontrado neste projeto: a regra `java:S4684` marca como
-  **vulnerabilidade** o `TaskController` receber a entidade JPA `Task` direto
-  via `@RequestBody` (deveria usar um DTO em vez de expor a entidade de
-  persistencia na API) — um otimo ponto de partida para uma proxima iteracao
-  do projeto.
-- **Security Hotspots** — pontos que merecem revisao manual de seguranca (nem
-  sempre sao vulnerabilidades confirmadas, mas pontos de atencao).
-- **Measures** — metricas agregadas: cobertura de testes, duplicacao, complexidade
-  ciclomatica, linhas de codigo, etc.
-
-> Como este projeto ainda nao tem classes de teste (ver stage **Test** do
-> Jenkinsfile), espere o SonarQube reclamar de cobertura de testes baixa/zerada —
-> e um otimo primeiro exercicio: escrever um teste, rodar a analise de novo e ver
-> a metrica de cobertura mudar.
->
-> O `Jenkinsfile` deste projeto **nao** interrompe o pipeline se o Quality Gate
-> falhar (e so um `mvn sonar:sonar`, sem checagem do resultado) — e proposital,
-> para manter o pipeline de estudo simples. Para bloquear o deploy quando o
-> Quality Gate falha, o proximo passo natural seria configurar um webhook do
-> SonarQube apontando para o Jenkins e usar os steps `waitForQualityGate` do
-> plugin "SonarQube Scanner for Jenkins".
