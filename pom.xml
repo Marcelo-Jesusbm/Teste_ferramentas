@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.practica</groupId>
+    <artifactId>k8s-jenkins-observability-lab</artifactId>
+    <version>1.0.0</version>
+    <packaging>pom</packaging>
+
+    <name>k8s-jenkins-observability-lab</name>
+    <description>Projeto de estudo: Kubernetes, Jenkins e observabilidade com microsservicos Spring Boot</description>
+
+    <modules>
+        <module>service-a</module>
+        <module>service-b</module>
+    </modules>
+
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.3.4</version>
+        <relativePath/>
+    </parent>
+
+    <properties>
+        <java.version>17</java.version>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <sonar.maven.plugin.version>5.8.0.7211</sonar.maven.plugin.version>
+    </properties>
+
+    <build>
+        <plugins>
+            <!-- Permite rodar "mvn sonar:sonar" a partir da raiz e analisar o
+                 reactor inteiro (service-a e service-b), enviando o resultado
+                 para o servidor SonarQube (ver -Dsonar.host.url no Jenkinsfile). -->
+            <plugin>
+                <groupId>org.sonarsource.scanner.maven</groupId>
+                <artifactId>sonar-maven-plugin</artifactId>
+                <version>${sonar.maven.plugin.version}</version>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>

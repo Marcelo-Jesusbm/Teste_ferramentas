@@ -1,0 +1,41 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: service-a
+  datasource:
+    url: jdbc:h2:mem:tasksdb
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+  h2:
+    console:
+      enabled: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    tags:
+      application: ${spring.application.name}
+  otlp:
+    tracing:
+      # Default para rodar local (fora do k8s). No cluster, o ConfigMap
+      # service-a-config sobrescreve via MANAGEMENT_OTLP_TRACING_ENDPOINT
+      # apontando para o Service do Tempo (ver k8s/manifests/service-a/configmap.yaml).
+      endpoint: http://localhost:4318/v1/traces
+  tracing:
+    sampling:
+      # 100% das requisicoes viram trace - errado para producao (custo/volume),
+      # mas para um lab de estudo queremos ver TODA requisicao no Tempo.
+      probability: 1.0

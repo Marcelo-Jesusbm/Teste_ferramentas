@@ -1,0 +1,36 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tempo-config
+  labels:
+    app: tempo
+data:
+  # Habilita os receivers OTLP (grpc:4317, http:4318) e storage local em disco.
+  # Assim como o Loki, o Tempo nao sobe com um default de fabrica sem isso — o
+  # pedido original so mencionava Deployment+Service, mas o ConfigMap com os
+  # receivers e obrigatorio para o Tempo funcionar de verdade.
+  tempo.yaml: |
+    server:
+      http_listen_port: 3200
+
+    distributor:
+      receivers:
+        otlp:
+          protocols:
+            http:
+            grpc:
+
+    ingester:
+      max_block_duration: 5m
+
+    compactor:
+      compaction:
+        block_retention: 24h
+
+    storage:
+      trace:
+        backend: local
+        local:
+          path: /var/tempo/traces
+        wal:
+          path: /var/tempo/wal

@@ -1,0 +1,64 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasources
+  labels:
+    app: grafana
+data:
+  # Provisionamento automatico dos 3 data sources (Prometheus, Loki, Tempo) via
+  # arquivo montado em /etc/grafana/provisioning/datasources/. Diferente do
+  # Prometheus (que este projeto documenta como configuracao manual pela UI,
+  # de proposito, para fins didaticos), aqui provisionamos direto porque a
+  # correlacao Loki<->Tempo pedida (derivedFields / tracesToLogsV2) e regex e
+  # muito propensa a erro de digitacao se feita a mao pela UI.
+  datasources.yaml: |
+    apiVersion: 1
+
+    datasources:
+      - name: Prometheus
+        uid: prometheus
+        type: prometheus
+        access: proxy
+        url: http://prometheus:9090
+        isDefault: true
+        editable: true
+
+      - name: Loki
+        uid: loki
+        type: loki
+        access: proxy
+        url: http://loki:3100
+        editable: true
+        jsonData:
+          derivedFields:
+            # Extrai o traceId do padrao "[traceId-spanId]" que o Spring Boot
+            # imprime automaticamente em cada linha de log quando o Micrometer
+            # Tracing esta ativo (ex.: "[065016f9a5d70907509f9a4681e331a0-2520aa7e59283ccf]").
+            # Confirmado batendo com o traceId real gravado no Tempo.
+            - datasourceUid: tempo
+              matcherRegex: '\[(\w{32})-\w{16}\]'
+              name: TraceID
+              # $$ (nao $) de proposito: o Grafana faz sua PROPRIA expansao de
+              # variaveis de ambiente ao carregar arquivos de provisioning, e
+              # trata "${__value.raw}" como uma env var inexistente, apagando
+              # o valor (viramos "" - testamos e confirmamos isso). "$$" escapa
+              # para um "$" literal, preservando o template usado pelo proprio
+              # frontend do Grafana para montar o link com o valor capturado.
+              url: '$${__value.raw}'
+
+      - name: Tempo
+        uid: tempo
+        type: tempo
+        access: proxy
+        url: http://tempo-service:3200
+        editable: true
+        jsonData:
+          tracesToLogsV2:
+            datasourceUid: loki
+            filterByTraceID: false
+            filterBySpanID: false
+            # Liga o atributo "service.name" do span ao label "app" dos logs no
+            # Loki (label que o Promtail extrai de __meta_kubernetes_pod_label_app).
+            tags:
+              - key: service.name
+                value: app

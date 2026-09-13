@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: service-b-config
+  labels:
+    app: service-b
+data:
+  # DNS interno do Service "service-a" (mesmo namespace): <service-name>:<port>
+  SERVICE_A_URL: "http://service-a:8081"
+  MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: "health,info,metrics,prometheus"
+  # Sobrescreve o default (localhost) do application.yml para o Service do Tempo.
+  MANAGEMENT_OTLP_TRACING_ENDPOINT: "http://tempo-service:4318/v1/traces"

@@ -1,0 +1,32 @@
+server:
+  port: 8082
+
+spring:
+  application:
+    name: service-b
+
+service-a:
+  url: ${SERVICE_A_URL:http://localhost:8081}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    tags:
+      application: ${spring.application.name}
+  otlp:
+    tracing:
+      # Default para rodar local (fora do k8s). No cluster, o ConfigMap
+      # service-b-config sobrescreve via MANAGEMENT_OTLP_TRACING_ENDPOINT
+      # apontando para o Service do Tempo (ver k8s/manifests/service-b/configmap.yaml).
+      endpoint: http://localhost:4318/v1/traces
+  tracing:
+    sampling:
+      # 100% das requisicoes viram trace - errado para producao (custo/volume),
+      # mas para um lab de estudo queremos ver TODA requisicao no Tempo.
+      probability: 1.0

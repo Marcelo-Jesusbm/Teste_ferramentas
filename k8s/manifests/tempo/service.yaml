@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Service
+metadata:
+  # Nome usado pelo application.yml de service-a/service-b em
+  # management.otlp.tracing.endpoint (ver src/main/resources/application.yml).
+  name: tempo-service
+  labels:
+    app: tempo
+spec:
+  type: ClusterIP
+  selector:
+    app: tempo
+  ports:
+    - name: http
+      port: 3200
+      targetPort: 3200
+    - name: otlp-grpc
+      port: 4317
+      targetPort: 4317
+    - name: otlp-http
+      port: 4318
+      targetPort: 4318

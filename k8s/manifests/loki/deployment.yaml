@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: loki
+  labels:
+    app: loki
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: loki
+  template:
+    metadata:
+      labels:
+        app: loki
+    spec:
+      containers:
+        - name: loki
+          image: grafana/loki:3.1.1
+          args:
+            - "-config.file=/etc/loki/local-config.yaml"
+          ports:
+            - containerPort: 3100
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          volumeMounts:
+            - name: config
+              mountPath: /etc/loki
+            - name: storage
+              mountPath: /loki
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 3100
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /ready
+              port: 3100
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            failureThreshold: 6
+      volumes:
+        - name: config
+          configMap:
+            name: loki-config
+        - name: storage
+          # Sem PVC de proposito (nao foi pedido para o Loki): os dados de log
+          # somem se o pod for recriado. Para persistir entre reinicios, troque
+          # por um volumes.persistentVolumeClaim (mesmo padrao usado no
+          # SonarQube em k8s/manifests/sonarqube/pvc.yaml).
+          emptyDir: {}

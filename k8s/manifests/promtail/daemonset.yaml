@@ -1,0 +1,53 @@
+# Promtail roda como DaemonSet (nao Deployment) de proposito: ele precisa de uma
+# instancia por NO do cluster para ler os arquivos de log locais (hostPath
+# /var/log/pods) daquele no. Um Deployment com 1 replica so veria os pods
+# agendados no mesmo no onde ele proprio calhasse de rodar - num cluster k3s de
+# 1 no isso daria na mesma, mas o DaemonSet e o jeito correto e portavel.
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: promtail
+  labels:
+    app: promtail
+spec:
+  selector:
+    matchLabels:
+      app: promtail
+  template:
+    metadata:
+      labels:
+        app: promtail
+    spec:
+      serviceAccountName: promtail
+      containers:
+        - name: promtail
+          image: grafana/promtail:3.1.1
+          args:
+            - "-config.file=/etc/promtail/promtail.yaml"
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "300m"
+          volumeMounts:
+            - name: config
+              mountPath: /etc/promtail
+            - name: pods-logs
+              mountPath: /var/log/pods
+              readOnly: true
+            - name: positions
+              mountPath: /run/promtail
+          securityContext:
+            # Precisa ler arquivos de log do host que pertencem ao root.
+            runAsUser: 0
+      volumes:
+        - name: config
+          configMap:
+            name: promtail-config
+        - name: pods-logs
+          hostPath:
+            path: /var/log/pods
+        - name: positions
+          emptyDir: {}
