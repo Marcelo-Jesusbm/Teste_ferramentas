@@ -64,21 +64,18 @@ pipeline {
         }
 
         stage('Import images to k3s containerd') {
-            // Como este lab NAO usa um registry de imagens (Docker Hub, ECR, etc.),
-            // as imagens construidas localmente no Docker precisam ser exportadas
-            // e importadas manualmente no containerd usado pelo k3s. E por isso que
-            // os Deployments usam imagePullPolicy: Never: sem essa importacao, o
-            // kubelet tentaria dar "pull" da imagem e falharia, pois ela so existe
-            // no Docker local, nao em nenhum registry.
-            //
-            // Pre-requisito: o usuario/servico que roda o Jenkins precisa ter
-            // permissao de sudo sem senha para "k3s ctr" (ou o agente ja roda
-            // como root).
-            steps {
-                sh "docker save ${SERVICE_A_IMAGE} | sudo k3s ctr images import -"
-                sh "docker save ${SERVICE_B_IMAGE} | sudo k3s ctr images import -"
-            }
-        }
+    // O Jenkins agora roda numa instancia separada do k3s, entao a
+    // importacao das imagens precisa ser feita remotamente via SSH.
+    // O usuario 'jenkins' ja tem uma chave autorizada na instancia do k3s
+    // (ver Modulo 12c) e sudo sem senha do lado de la.
+    environment {
+        K3S_HOST = "ubuntu@172.31.46.242"
+    }
+    steps {
+        sh "docker save ${SERVICE_A_IMAGE} | ssh -o StrictHostKeyChecking=accept-new ${K3S_HOST} 'sudo k3s ctr images import -'"
+        sh "docker save ${SERVICE_B_IMAGE} | ssh -o StrictHostKeyChecking=accept-new ${K3S_HOST} 'sudo k3s ctr images import -'"
+    }
+}
 
         stage('Deploy to Kubernetes') {
             // Aplica todos os manifests do repositorio: Deployments, Services e
